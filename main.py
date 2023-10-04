@@ -26,7 +26,7 @@ class Fund:
         self.calc_nav_per_shares()  # egy jegyre jutó nav
         self.interest_rate = 0.0001 / 12  # havi kamatláb (interneten ez volt a leggyakoribb)
         self.trajectory = self.generate_trajectory()
-        self.zerokupon = pd.read_csv("zerokupon.csv", sep=";")
+        self.zerokupon = pd.read_csv("zerokupon.csv", sep=";", usecols=[0,1])
         self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
 
     def add_asset(self, name, nominal): # új eszköz felvétele az alapba
@@ -42,6 +42,9 @@ class Fund:
 
     def add_bank_deposit(self, nominal):
         # 1 hét lejáratú lekötött bankbetét
+        premium = 1 # a zéró kupon hozamot ennyivel csökkentve kapott érték lesz a kamatunk
+        self.zerokupon["Hozam"] -= premium
+        self.zerokupon["Price"] = 100 / (1 + self.zerokupon["Hozam"] / 100) ** (7 / 365)
         self.n_assets += 1
         self.assets.loc[self.n_assets, "Name"] = "Bank Deposit"
         self.assets.loc[self.n_assets, "Maturity"] = self.date + timedelta(weeks=1)
