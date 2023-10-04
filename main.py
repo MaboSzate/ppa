@@ -11,7 +11,7 @@ class Fund:
         self.date = pd.to_datetime(date)  # az adott nap, kezdetben az input induló nap
         self.end_date = pd.to_datetime(end_date)
         self.investment = investment  # induló tőke
-        self.n_assets = 0  # eszközök száma
+        self.n_assets = 1  # eszközök száma
         self.priceData = pd.read_csv("prices2.csv", sep=";")  # ÁKK historikus adatok MÁK-okra és DKJ-kra
         self.priceData["Settle Date"] = pd.to_datetime(self.priceData["Settle Date"])  # konvertálás dátummá
         self.problem = False  # ez később igazra állítódik, ha valami gond van az alappal és közbe kell lépni
@@ -42,14 +42,11 @@ class Fund:
 
     def add_bank_deposit(self, nominal, method="alapkamat"):
         # 1 hét lejáratú lekötött bankbetét
-        premium = 1  # a zéró kupon hozamot ennyivel csökkentve kapott érték lesz a kamatunk
-        self.n_assets += 1 # később 1-et levonunk, az érték kalkuláció miatt kell itt +2
+        premium = 1  # a zéró kupon hozamot ennyivel csökkentve kapott érték lesz a kamatunk # később 1-et levonunk, az érték kalkuláció miatt kell itt +2
         self.assets.loc[self.n_assets, "Name"] = "Bank Deposit"
         self.assets.loc[self.n_assets, "Maturity"] = self.date + timedelta(weeks=1)
         self.assets.loc[self.n_assets, "Nominal"] = nominal
-        self.n_assets += 1 # később 1-et levonunk, az érték kalkuláció miatt kell itt +1
         self.calc_bank_deposit_value(method)
-        self.n_assets -= 1
 
     def calc_bank_deposit_value(self, method="alapkamat"):
         df = self.assets.loc[self.assets["Name"] == "Bank Deposit"]
@@ -58,13 +55,13 @@ class Fund:
             maturity = df["Maturity"].values[0]
             if method == "dkj":
                 self.zerokupon["Price"] = 100 / (1 + self.zerokupon["Hozam"] / 100) ** (7 / 365)
-                self.assets.loc[self.n_assets - 1, "Value"] = self.zerokupon["Price"].loc[self.zerokupon["Date"] ==
+                self.assets.loc[1, "Value"] = self.zerokupon["Price"].loc[self.zerokupon["Date"] ==
                                                                                       self.date].values[0] * nominal / 100
             if method == "alapkamat":
                 alapkamat = 13
                 premium = 1
                 price = 100 / (1 + (alapkamat-1) / 100) ** ((maturity - self.date).days / 365)
-                self.assets.loc[self.n_assets - 1, "Value"] = price * nominal / 100
+                self.assets.loc[1, "Value"] = price * nominal / 100
 
     def calc_nav_per_shares(self):
         self.nav_per_shares = self.nav / self.num_of_shares
@@ -86,13 +83,18 @@ class Fund:
         self.assets.loc[self.n_assets, "Name"] = "cash"
         self.assets.loc[self.n_assets, "Maturity"] = self.date
         self.assets.loc[self.n_assets, "Value"] = self.investment - self.assets["Value"].sum()
+        df = self.assets
+        df.loc[self.n_assets], df.loc[2] = df.loc[2].copy(), df.loc[self.n_assets].copy()
+        self.assets = df
 
     def check_maturity(self): # megnézzük, hogy a mai napon lejár-e valamelyik eszköz
         for index, row in self.assets.iterrows():
             date = row["Maturity"]
             if date == self.date and row["Name"] != "cash":
-                self.assets["Value"].loc[self.assets["Name"] == "cash"] += row["Nominal"]
+                self.assets.loc[2, "Value"] += row["Nominal"]
                 self.assets = self.assets.drop([index])
+            if date == self.date and row["Name"] == "Bank Deposit":
+                self.assets.loc[2, "Value"] += row["Nominal"]
 
     def check_limits(self):
         # self.problem = True helyett korrekció
@@ -126,8 +128,8 @@ class Fund:
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
         for index, row in self.assets.iterrows():
             price_date = self.date
-            if row["Name"] != "cash" and row["Name"] != "Bank Deposit": # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
-                df_original = self.priceData.loc[self.priceData["Security"] == self.assets.loc[index, "Name"]]
+            if index != 1 and index !=2: # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
+                df_original = self.priceData.loc[self.priceData["Security"] == row["Name"]]
                 df = df_original.loc[df_original["Settle Date"] == price_date]
                 while df.size == 0: # van olyan nap, amikor valamelyik eszközhöz nincs adat, ezért kell ez
                     price_date -= timedelta(days=1) # ekkor a legutolsó elérhető áron árazzuk
@@ -145,9 +147,9 @@ class Fund:
     def trade(self):
         trade_today = self.trajectory[self.dateIndex - 1]
         self.num_of_shares += trade_today
-        print(self.assets.loc[self.n_assets, "Value"])
-        self.assets.loc[self.n_assets, "Value"] += trade_today * self.nav_per_shares
-        print(self.assets.loc[self.n_assets, "Value"])
+        print(self.assets.loc[2, "Value"])
+        self.assets.loc[2, "Value"] += trade_today * self.nav_per_shares
+        print(self.assets.loc[2, "Value"])
         self.calc_share_of_assets()
 
     def tomorrow(self):
@@ -158,9 +160,10 @@ class Fund:
         self.calc_nav()
         self.trade()
         self.check_limits()
+        print(self.date.date(), self.nav, self.assets)
         self.calc_nav()
         self.calc_nav_per_shares()
-        print(self.date.date(), self.nav, self.assets)
+
 
 
 

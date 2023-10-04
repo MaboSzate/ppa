@@ -5,13 +5,13 @@ import pandas as pd
 def start_fund():
     # kezdetben kiválasztottam 6 random állampapírt, 2 DKJ 4 MÁK, mindegyik 30 milla névértéken
     # a maradék készpénz, ami kiadja a 15% heti lejáratú terméket
-    SafeHarbor.add_asset("D230517", 20)
-    SafeHarbor.add_asset("A241024C18", 20)
-    SafeHarbor.add_asset("D230920", 20)
-    SafeHarbor.add_asset("A231124A07", 20)
-    SafeHarbor.add_asset("A240626B15", 20)
-    SafeHarbor.add_asset("A261222D17", 20)
     SafeHarbor.add_bank_deposit(20)
+    SafeHarbor.add_asset("D230517", 30)
+    SafeHarbor.add_asset("A230823C20", 30)
+    SafeHarbor.add_asset("D230920", 30)
+    SafeHarbor.add_asset("A231124A07", 30)
+    SafeHarbor.add_asset("D231018", 20)
+    SafeHarbor.add_asset("D231227", 20)
     SafeHarbor.calc_remaining_cash()
 
 
