@@ -26,6 +26,8 @@ class Fund:
         self.calc_nav_per_shares()  # egy jegyre jutó nav
         self.interest_rate = 0.0001 / 12  # havi kamatláb (interneten ez volt a leggyakoribb)
         self.trajectory = self.generate_trajectory()
+        self.zerokupon = pd.read_csv("zerokupon.csv", sep=";")
+        self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
 
     def add_asset(self, name, nominal): # új eszköz felvétele az alapba
         self.n_assets += 1
@@ -37,6 +39,15 @@ class Fund:
         df = df.loc[df["Settle Date"] == self.date]
         self.assets.loc[self.n_assets, "Value"] = (df["Ask Price"].values[0] + df["Accrued"].values[0]) * nominal / 100
         # megkeressük a megfelelő dátumhoz tartozó ask price-t, és megszorozzuk a névértékkel
+
+    def add_bank_deposit(self, nominal):
+        # 1 hét lejáratú lekötött bankbetét
+        self.n_assets += 1
+        self.assets.loc[self.n_assets, "Name"] = "Bank Deposit"
+        self.assets.loc[self.n_assets, "Maturity"] = self.date + timedelta(weeks=1)
+        self.assets.loc[self.n_assets, "Nominal"] = nominal
+        self.assets.loc[self.n_assets, "Value"] = self.zerokupon["Price"].loc[self.zerokupon["Date"] ==
+                                                                              self.date].values[0] * nominal / 100
 
     def calc_nav_per_shares(self):
         self.nav_per_shares = self.nav / self.num_of_shares
@@ -61,8 +72,8 @@ class Fund:
         for index, row in self.assets.iterrows():
             date = row["Maturity"]
             if pd.to_datetime(date) == self.date and row["Name"] != "cash":
-                self.assets["Value"].loc[self.assets["Name"]=="cash"] += row["Nominal"]
-                self.assets=self.assets.drop([index])
+                self.assets["Value"].loc[self.assets["Name"] == "cash"] += row["Nominal"]
+                self.assets = self.assets.drop([index])
 
     def check_limits(self):
         pass # ide jönnek a limittesztek
@@ -70,7 +81,7 @@ class Fund:
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
         for index, row in self.assets.iterrows():
             price_date = self.date
-            if row["Name"] != "cash": # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
+            if row["Name"] != "cash" and row["Name"] != "Bank Deposit": # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
                 df_original = self.priceData.loc[self.priceData["Security"] == self.assets.loc[index, "Name"]]
                 df = df_original.loc[df_original["Settle Date"] == price_date]
                 while df.size == 0: # van olyan nap, amikor valamelyik eszközhöz nincs adat, ezért kell ez
@@ -79,6 +90,10 @@ class Fund:
                 current_price = df["Bid Price"].loc[df["Settle Date"] == price_date] + \
                                     df["Accrued"].loc[df["Settle Date"] == price_date]
                 self.assets.loc[index, "Value"] = current_price.values[0] * self.assets.loc[index, "Nominal"] / 100
+            if row["Name"] == "Bank Deposit":
+                hozam = self.zerokupon["Hozam"].loc[self.zerokupon["Date"] == self.date].values[0]
+                lejarat = (row["Maturity"] - self.date).days
+                self.assets.loc[index, "Value"] = 100 / (1 + hozam / 100) ** (lejarat / 365) * row["Nominal"] / 100
         self.nav = self.assets["Value"].sum() # a nav az új értékek összege
 
     def trade(self):
