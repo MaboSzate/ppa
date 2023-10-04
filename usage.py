@@ -11,6 +11,7 @@ def start_fund():
     SafeHarbor.add_asset("A231124A07", 30)
     SafeHarbor.add_asset("A240626B15", 30)
     SafeHarbor.add_asset("A261222D17", 30)
+    SafeHarbor.add_bank_deposit(20)
     SafeHarbor.calc_remaining_cash()
 
 

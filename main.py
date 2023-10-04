@@ -26,6 +26,8 @@ class Fund:
         self.calc_nav_per_shares()  # egy jegyre jutó nav
         self.interest_rate = 0.0001 / 12  # havi kamatláb (interneten ez volt a leggyakoribb)
         self.trajectory = self.generate_trajectory()
+        self.zerokupon = pd.read_csv("zerokupon.csv", sep=";", usecols=[0,1])
+        self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
 
     def add_asset(self, name, nominal):  # új eszköz felvétele az alapba
         self.n_assets += 1
@@ -37,6 +39,32 @@ class Fund:
         df = df.loc[df["Settle Date"] == self.date]
         self.assets.loc[self.n_assets, "Value"] = (df["Ask Price"].values[0] + df["Accrued"].values[0]) * nominal / 100
         # megkeressük a megfelelő dátumhoz tartozó ask price-t, és megszorozzuk a névértékkel
+
+    def add_bank_deposit(self, nominal, method="alapkamat"):
+        # 1 hét lejáratú lekötött bankbetét
+        premium = 1  # a zéró kupon hozamot ennyivel csökkentve kapott érték lesz a kamatunk
+        self.n_assets += 1 # később 1-et levonunk, az érték kalkuláció miatt kell itt +2
+        self.assets.loc[self.n_assets, "Name"] = "Bank Deposit"
+        self.assets.loc[self.n_assets, "Maturity"] = self.date + timedelta(weeks=1)
+        self.assets.loc[self.n_assets, "Nominal"] = nominal
+        self.n_assets += 1 # később 1-et levonunk, az érték kalkuláció miatt kell itt +1
+        self.calc_bank_deposit_value(method)
+        self.n_assets -= 1
+
+    def calc_bank_deposit_value(self, method="alapkamat"):
+        df = self.assets.loc[self.assets["Name"] == "Bank Deposit"]
+        if df.size != 0:
+            nominal = df["Nominal"].values[0]
+            maturity = df["Maturity"].values[0]
+            if method == "dkj":
+                self.zerokupon["Price"] = 100 / (1 + self.zerokupon["Hozam"] / 100) ** (7 / 365)
+                self.assets.loc[self.n_assets - 1, "Value"] = self.zerokupon["Price"].loc[self.zerokupon["Date"] ==
+                                                                                      self.date].values[0] * nominal / 100
+            if method == "alapkamat":
+                alapkamat = 13
+                premium = 1
+                price = 100 / (1 + (alapkamat-1) / 100) ** ((maturity - self.date).days / 365)
+                self.assets.loc[self.n_assets - 1, "Value"] = price * nominal / 100
 
     def calc_nav_per_shares(self):
         self.nav_per_shares = self.nav / self.num_of_shares
@@ -63,7 +91,7 @@ class Fund:
         for index, row in self.assets.iterrows():
             date = row["Maturity"]
             if date == self.date and row["Name"] != "cash":
-                self.assets["Value"].loc[self.assets["Name"]=="cash"] += row["Nominal"]
+                self.assets["Value"].loc[self.assets["Name"] == "cash"] += row["Nominal"]
                 self.assets = self.assets.drop([index])
 
     def check_limits(self):
@@ -85,7 +113,7 @@ class Fund:
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
         for index, row in self.assets.iterrows():
             price_date = self.date
-            if row["Name"] != "cash": # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
+            if row["Name"] != "cash" and row["Name"] != "Bank Deposit": # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
                 df_original = self.priceData.loc[self.priceData["Security"] == self.assets.loc[index, "Name"]]
                 df = df_original.loc[df_original["Settle Date"] == price_date]
                 while df.size == 0: # van olyan nap, amikor valamelyik eszközhöz nincs adat, ezért kell ez
@@ -94,6 +122,7 @@ class Fund:
                 current_price = df["Bid Price"].loc[df["Settle Date"] == price_date] + \
                                     df["Accrued"].loc[df["Settle Date"] == price_date]
                 self.assets.loc[index, "Value"] = current_price.values[0] * self.assets.loc[index, "Nominal"] / 100
+        self.calc_bank_deposit_value()
         self.nav = self.assets["Value"].sum() # a nav az új értékek összege
 
     # eszközök arányának kiszámítása a portfólióban
