@@ -40,17 +40,31 @@ class Fund:
         self.assets.loc[self.n_assets, "Value"] = (df["Ask Price"].values[0] + df["Accrued"].values[0]) * nominal / 100
         # megkeressük a megfelelő dátumhoz tartozó ask price-t, és megszorozzuk a névértékkel
 
-    def add_bank_deposit(self, nominal):
+    def add_bank_deposit(self, nominal, method="alapkamat"):
         # 1 hét lejáratú lekötött bankbetét
-        premium = 1 # a zéró kupon hozamot ennyivel csökkentve kapott érték lesz a kamatunk
-        self.zerokupon["Hozam"] -= premium
-        self.zerokupon["Price"] = 100 / (1 + self.zerokupon["Hozam"] / 100) ** (7 / 365)
-        self.n_assets += 1
+        premium = 1  # a zéró kupon hozamot ennyivel csökkentve kapott érték lesz a kamatunk
+        self.n_assets += 1 # később 1-et levonunk, az érték kalkuláció miatt kell itt +2
         self.assets.loc[self.n_assets, "Name"] = "Bank Deposit"
         self.assets.loc[self.n_assets, "Maturity"] = self.date + timedelta(weeks=1)
         self.assets.loc[self.n_assets, "Nominal"] = nominal
-        self.assets.loc[self.n_assets, "Value"] = self.zerokupon["Price"].loc[self.zerokupon["Date"] ==
-                                                                              self.date].values[0] * nominal / 100
+        self.n_assets += 1 # később 1-et levonunk, az érték kalkuláció miatt kell itt +1
+        self.calc_bank_deposit_value(method)
+        self.n_assets -= 1
+
+    def calc_bank_deposit_value(self, method="alapkamat"):
+        df = self.assets.loc[self.assets["Name"] == "Bank Deposit"]
+        if df.size != 0:
+            nominal = df["Nominal"].values[0]
+            maturity = df["Maturity"].values[0]
+            if method == "dkj":
+                self.zerokupon["Price"] = 100 / (1 + self.zerokupon["Hozam"] / 100) ** (7 / 365)
+                self.assets.loc[self.n_assets - 1, "Value"] = self.zerokupon["Price"].loc[self.zerokupon["Date"] ==
+                                                                                      self.date].values[0] * nominal / 100
+            if method == "alapkamat":
+                alapkamat = 13
+                premium = 1
+                price = 100 / (1 + (alapkamat-1) / 100) ** ((maturity - self.date).days / 365)
+                self.assets.loc[self.n_assets - 1, "Value"] = price * nominal / 100
 
     def calc_nav_per_shares(self):
         self.nav_per_shares = self.nav / self.num_of_shares
@@ -93,10 +107,7 @@ class Fund:
                 current_price = df["Bid Price"].loc[df["Settle Date"] == price_date] + \
                                     df["Accrued"].loc[df["Settle Date"] == price_date]
                 self.assets.loc[index, "Value"] = current_price.values[0] * self.assets.loc[index, "Nominal"] / 100
-            if row["Name"] == "Bank Deposit":
-                hozam = self.zerokupon["Hozam"].loc[self.zerokupon["Date"] == self.date].values[0]
-                lejarat = (row["Maturity"] - self.date).days
-                self.assets.loc[index, "Value"] = 100 / (1 + hozam / 100) ** (lejarat / 365) * row["Nominal"] / 100
+        self.calc_bank_deposit_value()
         self.nav = self.assets["Value"].sum() # a nav az új értékek összege
 
     def trade(self):
