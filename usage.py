@@ -23,5 +23,4 @@ end_date = pd.to_datetime("2023-06-30")
 # a tomorrow fv. minden nap szépen kiírja a nav-ot
 while not SafeHarbor.problem and SafeHarbor.date < end_date:
     SafeHarbor.tomorrow()
-
-
+    # print(SafeHarbor.assets)

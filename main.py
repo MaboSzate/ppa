@@ -27,11 +27,11 @@ class Fund:
         self.interest_rate = 0.0001 / 12  # havi kamatláb (interneten ez volt a leggyakoribb)
         self.trajectory = self.generate_trajectory()
 
-    def add_asset(self, name, nominal): # új eszköz felvétele az alapba
+    def add_asset(self, name, nominal):  # új eszköz felvétele az alapba
         self.n_assets += 1
         # bevezetésre kerül az assets DataFrame 4 oszlopa
         self.assets.loc[self.n_assets, "Name"] = name
-        self.assets.loc[self.n_assets, "Maturity"] = self.priceData["Maturity Date"].loc[self.priceData["Security"] == name].values[0]
+        self.assets.loc[self.n_assets, "Maturity"] = pd.to_datetime(self.priceData["Maturity Date"].loc[self.priceData["Security"] == name].values[0])
         self.assets.loc[self.n_assets, "Nominal"] = nominal # névérték
         df = self.priceData.loc[self.priceData["Security"] == name] # az árak leszűkítése a megfelelő eszközre
         df = df.loc[df["Settle Date"] == self.date]
@@ -49,6 +49,8 @@ class Fund:
             trajectory = numpy.random.randint(out_low, out_high, length)
         else:
             trajectory = numpy.random.randint(in_low, in_high, length)
+        day_of_shock = numpy.random.randint(0, length)
+        trajectory[day_of_shock] = numpy.random.randint(4 * out_low, 2 * out_low)
         return pd.Series(trajectory)
 
     def calc_remaining_cash(self): # az indulásnál a kezdőtőkéből megmaradt pénz készpénz lesz
@@ -60,12 +62,25 @@ class Fund:
     def check_maturity(self): # megnézzük, hogy a mai napon lejár-e valamelyik eszköz
         for index, row in self.assets.iterrows():
             date = row["Maturity"]
-            if pd.to_datetime(date) == self.date and row["Name"] != "cash":
+            if date == self.date and row["Name"] != "cash":
                 self.assets["Value"].loc[self.assets["Name"]=="cash"] += row["Nominal"]
-                self.assets=self.assets.drop([index])
+                self.assets = self.assets.drop([index])
 
     def check_limits(self):
-        pass # ide jönnek a limittesztek
+        # self.problem = True helyett korrekció
+        # legalább 7,5% napi lejáratú
+        if self.assets['Share'][self.assets['Maturity'] - self.date <= timedelta(days=1)].sum() < 0.075:
+            self.problem = True
+        # legalább 15% heti lejáratú
+        if self.assets['Share'][self.assets['Maturity'] - self.date <= timedelta(days=7)].sum() < 0.15:
+            # print(self.assets['Share'][self.assets['Name'] != 'cash'])
+            self.problem = True
+        # maximum 30% egy sorozatba
+        if any(self.assets['Share'][self.assets['Name'] != 'cash'] > 0.3):
+            self.problem = True
+        # legalább 6 sorozat
+        if self.assets[self.assets['Name'] != 'cash'].shape[0] < 6:
+            self.problem = True
 
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
         for index, row in self.assets.iterrows():
@@ -81,12 +96,17 @@ class Fund:
                 self.assets.loc[index, "Value"] = current_price.values[0] * self.assets.loc[index, "Nominal"] / 100
         self.nav = self.assets["Value"].sum() # a nav az új értékek összege
 
+    # eszközök arányának kiszámítása a portfólióban
+    def calc_share_of_assets(self):
+        self.assets['Share'] = self.assets['Value'] / self.nav
+
     def trade(self):
         trade_today = self.trajectory[self.dateIndex - 1]
         self.num_of_shares += trade_today
         print(self.assets.loc[self.n_assets, "Value"])
         self.assets.loc[self.n_assets, "Value"] += trade_today * self.nav_per_shares
         print(self.assets.loc[self.n_assets, "Value"])
+        self.calc_share_of_assets()
 
     def tomorrow(self):
         self.dateIndex += 1
