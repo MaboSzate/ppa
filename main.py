@@ -98,16 +98,29 @@ class Fund:
         # self.problem = True helyett korrekció
         # legalább 7,5% napi lejáratú
         if self.assets['Share'][self.assets['Maturity'] - self.date <= timedelta(days=1)].sum() < 0.075:
+            print('Napi lejárat 7,5% alatt')
             self.problem = True
         # legalább 15% heti lejáratú
         if self.assets['Share'][self.assets['Maturity'] - self.date <= timedelta(days=7)].sum() < 0.15:
-            # print(self.assets['Share'][self.assets['Name'] != 'cash'])
+            print('Heti lejárat 15% alatt')
+            self.problem = True
+        # Kell MÁK és DKJ is
+        DKJ, MAK = False, False
+        for name in self.assets['Name']:
+            if name[0] == 'D':
+                DKJ = True
+            elif name[0] == 'A':
+                MAK = True
+        if not DKJ or not MAK:
+            print('Nincs DKJ vagy MÁK')
             self.problem = True
         # maximum 30% egy sorozatba
-        if any(self.assets['Share'][self.assets['Name'] != 'cash'] > 0.3):
+        if any(self.assets['Share'][(self.assets['Name'] != 'cash') & (self.assets['Name'] != 'Bank Deposit')] > 0.3):
+            print('Több, mint 30% egy sorozatban')
             self.problem = True
         # legalább 6 sorozat
-        if self.assets[self.assets['Name'] != 'cash'].shape[0] < 6:
+        if self.assets[(self.assets['Name'] != 'cash') & (self.assets['Name'] != 'Bank Deposit')].shape[0] < 6:
+            print('Kevesebb, mint 6 sorozat')
             self.problem = True
 
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
