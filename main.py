@@ -150,10 +150,16 @@ class Fund:
             self.not_enough_assets()
 
     def not_enough_cash(self):
-        while self.assets.loc[2, 'Share'] < 0.1:
-            self.break_deposit(0.2)
-            self.calc_share_of_assets()
-        print("Betörtem betétet úgy, hogy 10% cash legyen")
+        if self.assets['Share'][self.assets['Maturity'] - self.date <= timedelta(days=7)].sum() >= 0.2:
+            while self.assets.loc[2, 'Share'] < 0.1:
+                self.break_deposit(0.2)
+                self.calc_share_of_assets()
+            print("Betörtem betétet úgy, hogy 10% cash legyen")
+        else:
+            while self.assets.loc[2, "Share"] < 0.1:
+                self.sell_assets(0.01)
+                self.calc_share_of_assets()
+            print("Eladtam eszközöket úgy, hogy 10% cash legyen")
 
     def not_enough_deposit(self):
         while self.assets.loc[1, 'Share'] + self.assets.loc[2, 'Share'] < 0.2:
