@@ -10,7 +10,7 @@ def start_fund():
     SafeHarbor.add_asset("A230823C20", 30)
     SafeHarbor.add_asset("D230920", 30)
     SafeHarbor.add_asset("A231124A07", 30)
-    SafeHarbor.add_asset("D231018", 20)
+    SafeHarbor.add_asset("D231018", 25)
     SafeHarbor.add_asset("D231227", 20)
     SafeHarbor.calc_remaining_cash()
 
@@ -22,6 +22,9 @@ end_date = pd.to_datetime("2023-06-30")
 
 # egyelőre a program addig megy amíg nincs probléma (vagy az end date-ig)
 # a tomorrow fv. minden nap szépen kiírja a nav-ot
+SafeHarbor.calc_nav()
+SafeHarbor.calc_share_of_assets()
+print(SafeHarbor.date, SafeHarbor.nav, SafeHarbor.assets)
 while not SafeHarbor.problem and SafeHarbor.date < end_date:
     SafeHarbor.tomorrow()
     # print(SafeHarbor.assets)
