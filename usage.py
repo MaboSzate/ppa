@@ -21,8 +21,6 @@ start_fund()
 SafeHarbor.generate_trajectory()
 end_date = pd.to_datetime("2023-06-30")
 
-# egyelőre a program addig megy amíg nincs probléma (vagy az end date-ig)
-# a tomorrow fv. minden nap szépen kiírja a nav-ot
 SafeHarbor.calc_nav()
 SafeHarbor.calc_share_of_assets()
 print(SafeHarbor.date, SafeHarbor.nav, SafeHarbor.assets)

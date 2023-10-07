@@ -84,13 +84,11 @@ class Fund:
         self.nav_per_shares = self.nav / self.num_of_shares
 
     def generate_trajectory(self):
-        length = self.tradingDays.size
+        length = int(self.tradingDays.size / 2)
         out_low, out_high = -150, 50
-        in_low, in_high = -50, 150
-        if self.date < pd.to_datetime("2023.06.01"):
-            trajectory = numpy.random.randint(out_low, out_high, length)
-        else:
-            trajectory = numpy.random.randint(in_low, in_high, length)
+        in_low, in_high = -50, 100
+        trajectory = numpy.random.randint(out_low, out_high, length)
+        trajectory = np.append(trajectory, numpy.random.randint(in_low, in_high, length))
         day_of_shock = numpy.random.randint(0, length)
         trajectory[day_of_shock] = numpy.random.randint(4 * out_low, 2 * out_low)
         return pd.Series(trajectory)
@@ -165,6 +163,9 @@ class Fund:
         if np.dot(self.assets["Maturity"] - self.date, self.assets["Share"]).days > 180:
             print("Wal túl magas")
             self.problem = True
+        # ha túl sok a cash, vegyünk még valamit
+        if self.assets.loc[1, "Share"] > 0.2:
+            self.not_enough_assets()
 
     def not_enough_cash(self):
         if self.assets['Share'][self.assets.index > 10].sum() >= 0.2:
@@ -283,3 +284,4 @@ class Fund:
         df_nav.plot()
         df_nav_per_shares.plot()
         self.df_shares.T.plot()
+
