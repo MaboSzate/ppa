@@ -11,7 +11,7 @@ class Fund:
         self.date = pd.to_datetime(date)  # az adott nap, kezdetben az input induló nap
         self.end_date = pd.to_datetime(end_date)
         self.investment = investment  # induló tőke
-        self.n_assets = 2  # eszközök száma
+        self.n_assets = 1  # eszközök száma
         self.priceData = pd.read_csv("prices2.csv", sep=";")  # ÁKK historikus adatok MÁK-okra és DKJ-kra
         self.priceData["Settle Date"] = pd.to_datetime(self.priceData["Settle Date"])  # konvertálás dátummá
         self.problem = False  # ez később igazra állítódik, ha valami gond van az alappal és közbe kell lépni
@@ -29,6 +29,7 @@ class Fund:
         self.zerokupon = pd.read_csv("zerokupon.csv", sep=";", usecols=[0, 1])
         self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
         self.new_asset_index = 0
+        self.deposit_index = 1
 
         # plotokhoz szükséges listák/dataframe-ek
         self.date_list = [self.date]
@@ -57,10 +58,10 @@ class Fund:
 
     def add_bank_deposit(self, nominal):
         # 1 hét lejáratú lekötött bankbetét
-        self.assets.loc[1, "Name"] = "Bank Deposit"
-        self.assets.loc[1, "Maturity"] = self.date + timedelta(weeks=1)
-        self.assets.loc[1, "Nominal"] = nominal
-        self.assets.loc[1, "Value"] = nominal
+        self.assets.loc[10 + self.deposit_index, "Name"] = "Bank Deposit " + str(self.deposit_index)
+        self.assets.loc[10 + self.deposit_index, "Maturity"] = self.date + timedelta(weeks=1)
+        self.assets.loc[10 + self.deposit_index, "Nominal"] = nominal
+        self.assets.loc[10 + self.deposit_index, "Value"] = nominal
 
     # def calc_bank_deposit_value(self, method="alapkamat"):
     #     df = self.assets.loc[self.assets["Name"] == "Bank Deposit"]
@@ -93,36 +94,40 @@ class Fund:
         return pd.Series(trajectory)
 
     def calc_remaining_cash(self): # az indulásnál a kezdőtőkéből megmaradt pénz készpénz lesz
-        self.assets.loc[2, "Name"] = "cash"
-        self.assets.loc[2, "Maturity"] = self.date
-        self.assets.loc[2, "Value"] = self.investment - self.assets["Value"].sum()
+        self.assets.loc[1, "Name"] = "cash"
+        self.assets.loc[1, "Maturity"] = self.date
+        self.assets.loc[1, "Value"] = self.investment - self.assets["Value"].sum()
         df = self.assets
-        df.loc[2], df.loc[2] = df.loc[2].copy(), df.loc[2].copy()
+        df.loc[1], df.loc[1] = df.loc[1].copy(), df.loc[1].copy()
         self.assets = df
 
     def break_deposit(self, nominal):
-        self.assets.loc[1, "Value"] -= nominal
-        self.assets.loc[1, "Nominal"] -= nominal
-        self.assets.loc[2, "Value"] += nominal
+        furthest_maturity_deposit = self.assets.loc[self.assets.index > 10]["Maturity"].idxmax()
+        self.assets.loc[furthest_maturity_deposit, "Value"] -= nominal
+        self.assets.loc[furthest_maturity_deposit, "Nominal"] -= nominal
+        self.assets.loc[1, "Value"] += nominal
 
     def sell_assets(self, sell_ratio):
-        nominal_loss = self.assets["Nominal"].loc[self.assets.index > 2] * sell_ratio
-        value_loss = self.assets["Value"].loc[self.assets.index > 2] * sell_ratio
-        self.assets["Nominal"].loc[self.assets.index > 2] -= nominal_loss
-        self.assets["Value"].loc[self.assets.index > 2] -= value_loss
-        self.assets.loc[2, "Value"] += value_loss.sum()
+        securities = self.assets.index[self.assets.index < 10]
+        securities = securities[securities > 1]
+        nominal_loss = self.assets.loc[securities, "Nominal"] * sell_ratio
+        value_loss = self.assets.loc[securities, "Value"] * sell_ratio
+        self.assets.loc[securities, "Nominal"] -= nominal_loss
+        self.assets.loc[securities, "Value"] -= value_loss
+        self.assets.loc[1, "Value"] += value_loss.sum()
 
     def check_maturity(self): # megnézzük, hogy a mai napon lejár-e valamelyik eszköz
         for index, row in self.assets.iterrows():
             date = row["Maturity"]
-            if date <= self.date and index > 2:
-                self.assets.loc[2, "Value"] += row["Nominal"]
+            if date <= self.date and 10 > index > 1:
+                self.assets.loc[1, "Value"] += row["Nominal"]
                 self.assets = self.assets.drop([index])
-            if date <= self.date and index == 1:
+            if date <= self.date and index > 10:
                 alapkamat = 0.13
                 premium = 0.01
                 kamat = (alapkamat - premium) * (7/365) * row["Nominal"]
-                self.assets.loc[2, "Value"] += kamat
+                self.assets.loc[1, "Value"] += kamat
+                self.deposit_index = index - 10
                 self.add_bank_deposit(row["Nominal"])
                 print("Betét lejárt, kamatazott " + str(kamat) + " mFt-t")
 
@@ -147,39 +152,40 @@ class Fund:
             print('Nincs DKJ vagy MÁK')
             self.problem = True
         # maximum 30% egy sorozatba
-        if any(self.assets['Share'][(self.assets['Name'] != 'cash') & (self.assets['Name'] != 'Bank Deposit')] > 0.3):
+        if any(self.assets['Share'][(self.assets['Name'] != 'cash') & (self.assets.index < 10)] > 0.3):
             print('Több, mint 30% egy sorozatban')
             self.problem = True
         # legalább 6 sorozat
-        if self.assets[(self.assets['Name'] != 'cash') & (self.assets['Name'] != 'Bank Deposit')].shape[0] < 6:
+        if self.assets[(self.assets['Name'] != 'cash') & (self.assets.index < 10)].shape[0] < 6:
             print('Kevesebb, mint 6 sorozat')
             self.not_enough_assets()
 
     def not_enough_cash(self):
         if self.assets['Share'][self.assets['Maturity'] - self.date <= timedelta(days=7)].sum() >= 0.2:
-            while self.assets.loc[2, 'Share'] < 0.1:
+            while self.assets.loc[1, 'Share'] < 0.1:
                 self.break_deposit(0.2)
                 self.calc_share_of_assets()
             print("Betörtem betétet úgy, hogy 10% cash legyen")
         else:
-            while self.assets.loc[2, "Share"] < 0.1:
+            while self.assets.loc[1, "Share"] < 0.1:
                 self.sell_assets(0.01)
                 self.calc_share_of_assets()
             print("Eladtam eszközöket úgy, hogy 10% cash legyen")
 
     def not_enough_deposit(self):
-        while self.assets.loc[1, 'Share'] + self.assets.loc[2, 'Share'] < 0.2:
+        while self.assets.loc[1, 'Share'] + self.assets['Share'].loc[self.assets.index > 10].sum() < 0.2:
             self.sell_assets(0.01)
             self.calc_share_of_assets()
         print("Eladtam eszközöket úgy, hogy 20% cash+deposit legyen")
-        half_of_cash = self.assets.loc[2, "Value"] / 2
-        current_deposit = self.assets.loc[1, "Value"]
-        self.add_bank_deposit(half_of_cash + current_deposit)
-        self.assets.loc[2, "Value"] -= half_of_cash
+        half_of_cash = self.assets.loc[1, "Value"] / 2
+        self.deposit_index += 1
+        self.add_bank_deposit(half_of_cash)
+        print("Most van bd 2")
+        self.assets.loc[1, "Value"] -= half_of_cash
         self.check_limits()
 
     def not_enough_assets(self):
-        if self.assets.loc[2, 'Value'] < 0.1:
+        if self.assets.loc[1, 'Value'] < 0.1:
             print("Kevesebb, mint 6 eszköz, nincs pénzem újat venni")
             self.problem = True
         available_assets = ["D240221", "D240430"]
@@ -188,11 +194,11 @@ class Fund:
         nominal = 1
         nominal_increment = 1
         old_value = 0
-        while self.assets.loc[2, 'Share'] >= 0.1:
+        while self.assets.loc[1, 'Share'] >= 0.1:
             self.add_asset(new_asset, nominal)
             new_value = self.assets.loc[self.n_assets, "Value"]
             value_change = new_value - old_value
-            self.assets.loc[2, "Value"] -= value_change
+            self.assets.loc[1, "Value"] -= value_change
             self.n_assets -= 1
             self.calc_nav()
             self.calc_share_of_assets()
@@ -203,7 +209,7 @@ class Fund:
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
         for index, row in self.assets.iterrows():
             price_date = self.date
-            if index != 1 and index !=2: # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
+            if index != 1 and index < 10: # a cash-t nem kell újraárazni, a többit hasonlóan árazzuk, mint az add_assetnél
                 df_original = self.priceData.loc[self.priceData["Security"] == row["Name"]]
                 df = df_original.loc[df_original["Settle Date"] == price_date]
                 while df.size == 0: # van olyan nap, amikor valamelyik eszközhöz nincs adat, ezért kell ez
@@ -223,7 +229,7 @@ class Fund:
         trade_today = self.trajectory[self.dateIndex - 1]
         self.num_of_shares += trade_today
         # print(self.assets.loc[2, "Value"])
-        self.assets.loc[2, "Value"] += trade_today * self.nav_per_shares
+        self.assets.loc[1, "Value"] += trade_today * self.nav_per_shares
         # print(self.assets.loc[2, "Value"])
         print("Mai pénzmozgás: " + str(trade_today * self.nav_per_shares))
 
@@ -234,7 +240,7 @@ class Fund:
         self.dateIndex += 1
         self.date = self.tradingDays[self.dateIndex]
         self.check_maturity()
-        self.assets.loc[2, "Maturity"] = self.date
+        self.assets.loc[1, "Maturity"] = self.date
         self.trade()
 
         # nem tudom, hogy elé vagy mögé kéne, vagy mindkettő
