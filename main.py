@@ -26,9 +26,15 @@ class Fund:
         self.calc_nav_per_shares()  # egy jegyre jutó nav
         self.interest_rate = 0.0001 / 12  # havi kamatláb (interneten ez volt a leggyakoribb)
         self.trajectory = self.generate_trajectory()
-        self.zerokupon = pd.read_csv("zerokupon.csv", sep=";", usecols=[0,1])
+        self.zerokupon = pd.read_csv("zerokupon.csv", sep=";", usecols=[0, 1])
         self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
         self.new_asset_index = 0
+
+        # plotokhoz szükséges listák/dataframe-ek
+        self.date_list = [self.date]
+        self.nav_list = [self.nav]
+        self.nav_per_shares_list = [self.nav_per_shares]
+        self.df_shares = pd.DataFrame()
 
     def add_asset(self, name, nominal):  # új eszköz felvétele az alapba
         self.n_assets += 1
@@ -222,18 +228,45 @@ class Fund:
         print("Mai pénzmozgás: " + str(trade_today * self.nav_per_shares))
 
     def tomorrow(self):
+        # első nap a df_shares
+        if self.dateIndex == 0:
+            self.df_shares = self.assets.copy()
         self.dateIndex += 1
         self.date = self.tradingDays[self.dateIndex]
         self.check_maturity()
         self.assets.loc[2, "Maturity"] = self.date
         self.trade()
+
+        # nem tudom, hogy elé vagy mögé kéne, vagy mindkettő
         self.calc_nav()
         self.calc_share_of_assets()
+
         self.check_limits()
+
         self.calc_nav()
         self.calc_share_of_assets()
+
         self.calc_nav_per_shares()
+
+        self.add_items()
         print(self.date.date(), self.nav, self.assets)
 
+    def add_items(self):
+        self.date_list.append(self.date)
+        self.nav_list.append(self.nav)
+        self.nav_per_shares_list.append(self.nav_per_shares)
+        self.df_shares = self.df_shares.merge(self.assets, 'outer', 'Name')
 
+    def plot_values(self):
+        df_nav = pd.DataFrame({'Net Asset Value': self.nav_list},
+                              index=self.date_list)
 
+        df_nav_per_shares = pd.DataFrame({'Net Asset Value per Shares': self.nav_per_shares_list}, index=self.date_list)
+
+        self.df_shares.index = self.df_shares['Name']
+        self.df_shares = self.df_shares.filter(like='Share', axis=1)
+        self.df_shares.columns = self.date_list
+
+        df_nav.plot()
+        df_nav_per_shares.plot()
+        self.df_shares.T.plot()

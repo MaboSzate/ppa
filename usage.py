@@ -1,5 +1,6 @@
 import main as m
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 def start_fund():
@@ -28,3 +29,7 @@ print(SafeHarbor.date, SafeHarbor.nav, SafeHarbor.assets)
 while not SafeHarbor.problem and SafeHarbor.date < end_date:
     SafeHarbor.tomorrow()
     # print(SafeHarbor.assets)
+
+print(SafeHarbor.df_shares)
+SafeHarbor.plot_values()
+plt.show()
