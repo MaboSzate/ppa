@@ -2,16 +2,31 @@
 bizonytalanság projektmunka
 
 Amit egyelőre tud:
-- betenni állampapírokat és készpénzt (mást nem) egy alapba
+- betenni állampapírokat, készpénzt, bankbetétet egy alapba
 - a napot pörgetve újraárazni, nav-ot számolni
-- forgalmazási adatok alapján készpénzt ki-be tenni
-- lecsekkolja, hogy lejár-e valamelyik eszköz, ha igen, átváltja készpénzre
 - visszaváltási trajektóriát csinál, készpénzhez hozzáad/elvesz ez alapján
+- limiteket megnézi, egy algoritmus tranzakciókat csinál, ha valamelyik limit sérül
 
 Ami hiányzik:
-- limit tesztek, wam, wal számolás
-- bankbetétek
-- stressztesztek 
-- valamilyen algoritmus a konkrét feladatmegoldásra (mi történik, ha elfogy a kp, mikor kell valamit eladni, stb)
+- stressztesztek
+- tranzakció árfolyamváltozás miatt 
 
-Az utolsó pontot lehet, hogy egyszerűbb manuálisan megoldani, a kész szimulált forgalmazási adatokra, de az béna :/
+Ha lefuttatod a usage.py-t, végigfut a program, kiplotolva, hogy hogy változott az eszközök értéke, a NAV, és a NAV per share. 
+Az eszközök a self.assets dataframe-ben vannak. 1-es indexel van a cash, 11-től kezdődő indexel a különböző lejáratú bankbetétek, a kettő közötti indexeléssel az állampapírok. 
+A tomorrow függvény pörgeti a napokat, ott látszik, hogy mit nézünk meg minden nap.
+
+A bankbetétünk így működik:
+ - egy hét lejáratú lekötött betét
+ - lejárat előtt bármikor feltörhető, ekkor nem fizet kamatot
+ - ha lejár, alapkamat - 1% éves kamatnak megfelelő kamatot fizet, ekkor ugyanennyit újra berakunk, a kamat megy cash-be
+ - a nav számításnál névértéken számoljuk az értékét (tehát a kamatot figyelmen kívül hagyjuk), mivel ennyit fizetne, ha egyből el kéne adni
+ - nem nézzük, hogy melyik banknál van: mivel végig 10-20%-a a nav-nak, feltehetjük, hogy diverzifikálni tudjuk úgy, hogy egy intézetben csak max 10%; illetve azt is feltesszük, hogy minden banknál megkapjuk ezt az alapkamat - 1% kamatot 
+
+
+A check_limits függvénynél látszik, hogy hogy működik a tranzakciókat elvégző algoritmus:
+- ha túl kevés a napi lejáratú eszköz, de van sok bankbetét, betör bankbetétet
+- ha túl kevés a napi lejáratú eszköz, de nincs sok bankbetét, elad állampapírokat
+- ha túl kevés a heti lejáratú eszköz, elad állampípírokat, majd a pénzállomány felét bankbetétbe rakja
+- ha kevesebb, mint 6 eszköz van, vesz egy új állampapírt
+- ha valami csoda folytán nagyok sok lesz a cash, vesz új állampapírt
+
