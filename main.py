@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import timedelta
 import numpy.random
+import numpy as np
 import matplotlib.pyplot as plt
 
 
@@ -35,6 +36,7 @@ class Fund:
         self.date_list = [self.date]
         self.nav_list = [self.nav]
         self.nav_per_shares_list = [self.nav_per_shares]
+        self.num_of_shares_list = [self.num_of_shares / 50]
         self.df_shares = pd.DataFrame()
 
     def add_asset(self, name, nominal):  # új eszköz felvétele az alapba
@@ -159,9 +161,13 @@ class Fund:
         if self.assets[(self.assets['Name'] != 'cash') & (self.assets.index < 10)].shape[0] < 6:
             print('Kevesebb, mint 6 sorozat')
             self.not_enough_assets()
+        # WAM legfeljebb 6 hónap
+        if np.dot(self.assets["Maturity"] - self.date, self.assets["Share"]).days > 180:
+            print("Wal túl magas")
+            self.problem = True
 
     def not_enough_cash(self):
-        if self.assets['Share'][self.assets['Maturity'] - self.date <= timedelta(days=7)].sum() >= 0.2:
+        if self.assets['Share'][self.assets.index > 10].sum() >= 0.2:
             while self.assets.loc[1, 'Share'] < 0.1:
                 self.break_deposit(0.2)
                 self.calc_share_of_assets()
@@ -261,16 +267,17 @@ class Fund:
         self.date_list.append(self.date)
         self.nav_list.append(self.nav)
         self.nav_per_shares_list.append(self.nav_per_shares)
+        self.num_of_shares_list.append(self.num_of_shares / 50)
         self.df_shares = self.df_shares.merge(self.assets, 'outer', 'Name')
 
     def plot_values(self):
-        df_nav = pd.DataFrame({'Net Asset Value': self.nav_list},
+        df_nav = pd.DataFrame({'Net Asset Value': self.nav_list, 'Number of Shares': self.num_of_shares_list},
                               index=self.date_list)
 
         df_nav_per_shares = pd.DataFrame({'Net Asset Value per Shares': self.nav_per_shares_list}, index=self.date_list)
 
         self.df_shares.index = self.df_shares['Name']
-        self.df_shares = self.df_shares.filter(like='Share', axis=1)
+        self.df_shares = self.df_shares.filter(like='Value', axis=1)
         self.df_shares.columns = self.date_list
 
         df_nav.plot()
