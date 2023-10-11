@@ -8,12 +8,12 @@ def start_fund():
     # kezdetben kiválasztottam 6 random állampapírt, 2 DKJ 4 MÁK, mindegyik 30 milla névértéken
     # a maradék készpénz, ami kiadja a 15% heti lejáratú terméket
     SafeHarbor.add_bank_deposit(20)
-    SafeHarbor.add_asset("D230517", 20)
-    SafeHarbor.add_asset("D231129", 20)
-    SafeHarbor.add_asset("D230920", 20)
+    SafeHarbor.add_asset("D230517", 22)
+    SafeHarbor.add_asset("D231129", 22)
+    SafeHarbor.add_asset("D230920", 22)
     SafeHarbor.add_asset("A231124A07", 60)
-    SafeHarbor.add_asset("D231018", 20)
-    SafeHarbor.add_asset("D231227", 20)
+    SafeHarbor.add_asset("D231018", 22)
+    SafeHarbor.add_asset("D231227", 22)
     SafeHarbor.calc_remaining_cash()
 
 
@@ -30,6 +30,7 @@ while not SafeHarbor.problem and SafeHarbor.date < end_date:
     SafeHarbor.tomorrow()
     # print(SafeHarbor.assets)
 
-print(SafeHarbor.df_shares)
+
 SafeHarbor.plot_values()
 plt.show()
+SafeHarbor.save_to_excel()

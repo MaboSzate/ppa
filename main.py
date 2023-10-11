@@ -4,6 +4,7 @@ import numpy.random
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+from openpyxl.workbook import Workbook
 
 
 class Fund:
@@ -32,13 +33,16 @@ class Fund:
         self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
         self.new_asset_index = 0
         self.deposit_index = 1
+        self.walm = 0
 
         # plotokhoz szükséges listák/dataframe-ek
         self.date_list = [self.date]
         self.nav_list = [self.nav]
         self.nav_per_shares_list = [self.nav_per_shares]
         self.num_of_shares_list = [self.num_of_shares / 50]
-        self.df_shares = pd.DataFrame()
+        self.df_all = pd.DataFrame()
+        self.returns = pd.DataFrame()
+        self.walm_list = []
 
     def add_asset(self, name, nominal):  # új eszköz felvétele az alapba
         self.n_assets += 1
@@ -161,7 +165,7 @@ class Fund:
             print('Kevesebb, mint 6 sorozat')
             self.not_enough_assets()
         # WAM legfeljebb 6 hónap
-        if np.dot(self.assets["Maturity"] - self.date, self.assets["Share"]).days > 180:
+        if self.walm > 180:
             print("Wal túl magas")
             self.problem = True
         # ha túl sok a cash, vegyünk még valamit
@@ -220,7 +224,7 @@ class Fund:
         old_value = self.assets.loc[idx, "Value"]
         old_n_assets = self.n_assets
         self.n_assets = idx - 1
-        self.add_asset(name, 40)
+        self.add_asset(name, 50)
         new_value = self.assets.loc[idx, "Value"]
         self.assets.loc[1, "Value"] += old_value - new_value
         self.n_assets = old_n_assets
@@ -254,7 +258,7 @@ class Fund:
     def tomorrow(self):
         # első nap a df_shares
         if self.dateIndex == 0:
-            self.df_shares = self.assets.copy()
+            self.df_all = self.assets.copy()
         self.dateIndex += 1
         self.date = self.tradingDays[self.dateIndex]
         self.check_maturity()
@@ -264,7 +268,7 @@ class Fund:
         # nem tudom, hogy elé vagy mögé kéne, vagy mindkettő
         self.calc_nav()
         self.calc_share_of_assets()
-
+        self.walm = np.dot(self.assets["Maturity"] - self.date, self.assets["Share"]).days
         self.check_limits()
 
         self.calc_nav()
@@ -279,18 +283,38 @@ class Fund:
         self.date_list.append(self.date)
         self.nav_list.append(self.nav)
         self.nav_per_shares_list.append(self.nav_per_shares)
-       # self.df_shares = self.df_shares.merge(self.assets, how='outer', on='Name')
+        self.df_all = self.df_all.merge(self.assets, how='outer', on='Name', suffixes=(str(self.date), str(self.date)))
+        self.walm_list.append(self.walm)
 
     def plot_values(self):
         df_nav = pd.DataFrame({'Net Asset Value': self.nav_list}, index=self.date_list)
 
         df_nav_per_shares = pd.DataFrame({'Net Asset Value per Shares': self.nav_per_shares_list}, index=self.date_list)
 
-       # self.df_shares.index = self.df_shares['Name']
-       # self.df_shares = self.df_shares.filter(like='Value', axis=1)
-       # self.df_shares.columns = self.date_list
+        self.df_all.index = self.df_all['Name']
+        df_shares = self.df_all.filter(like='Share', axis=1)
+        df_shares.columns = self.date_list
 
         df_nav.plot()
         df_nav_per_shares.plot()
-        # self.df_shares.T.plot()
+        df_shares.T.plot()
+
+    def calculate_return_and_volatility(self):
+        df_nav = pd.DataFrame({'Net Asset Value': self.nav_list}, index=self.date_list)
+        df_nav_per_shares = pd.DataFrame({'Net Asset Value per Shares': self.nav_per_shares_list}, index=self.date_list)
+        self.returns = df_nav_per_shares / df_nav_per_shares.shift(1) - 1
+        volatility = self.returns.std() * np.sqrt(252)
+
+    def save_to_excel(self):
+        self.calculate_return_and_volatility()
+        self.df_all.index = self.df_all['Name']
+        df_shares = self.df_all.filter(like='Share', axis=1)
+        df_shares.columns = self.date_list
+        df_maturity = self.df_all.filter(like='Maturity', axis=1)
+        df_maturity.columns = self.date_list
+        self.returns.to_excel("returns.xlsx")
+        df_shares.to_excel("shares.xlsx")
+        df_maturity.to_excel("maturity.xlsx")
+        self.walm_list = pd.DataFrame(self.walm_list)
+        self.walm_list.to_excel("walm.xlsx")
 
