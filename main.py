@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import timedelta
 import numpy.random
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 
 
@@ -52,8 +53,7 @@ class Fund:
             price_date -= timedelta(days=1)  # ekkor a legutolsó elérhető áron árazzuk
             df = df_original.loc[df_original["Settle Date"] == price_date]
             print(df_original)
-        current_price = df["Bid Price"].loc[df["Settle Date"] == price_date] + \
-                            df["Accrued"].loc[df["Settle Date"] == price_date]
+        current_price = df["Bid Price"] + df["Accrued"]
         self.assets.loc[self.n_assets, "Value"] = current_price.values[0] * \
                                                   self.assets.loc[self.n_assets, "Nominal"] / 100
         # megkeressük a megfelelő dátumhoz tartozó ask price-t, és megszorozzuk a névértékkel
@@ -84,6 +84,7 @@ class Fund:
         self.nav_per_shares = self.nav / self.num_of_shares
 
     def generate_trajectory(self):
+        np.random.seed(69420)
         length = int(self.tradingDays.size / 2)
         out_low, out_high = -150, 50
         in_low, in_high = -50, 100
@@ -154,7 +155,7 @@ class Fund:
         # maximum 30% egy sorozatba
         if any(self.assets['Share'][(self.assets['Name'] != 'cash') & (self.assets.index < 10)] > 0.3):
             print('Több, mint 30% egy sorozatban')
-            self.problem = True
+            self.above_30()
         # legalább 6 sorozat
         if self.assets[(self.assets['Name'] != 'cash') & (self.assets.index < 10)].shape[0] < 6:
             print('Kevesebb, mint 6 sorozat')
@@ -164,8 +165,8 @@ class Fund:
             print("Wal túl magas")
             self.problem = True
         # ha túl sok a cash, vegyünk még valamit
-        if self.assets.loc[1, "Share"] > 0.2:
-            self.not_enough_assets()
+        # if self.assets.loc[1, "Share"] > 0.2:
+         #   self.not_enough_assets()
 
     def not_enough_cash(self):
         if self.assets['Share'][self.assets.index > 10].sum() >= 0.2:
@@ -198,7 +199,7 @@ class Fund:
         available_assets = ["D240221", "D240430"]
         new_asset = available_assets[self.new_asset_index]
         self.new_asset_index += 1
-        nominal = 1
+        nominal = 10
         nominal_increment = 1
         old_value = 0
         while self.assets.loc[1, 'Share'] >= 0.1:
@@ -213,6 +214,17 @@ class Fund:
             nominal += nominal_increment
         self.check_limits()
 
+    def above_30(self):
+        idx = self.assets["Share"].idxmax()
+        name = self.assets.loc[idx, "Name"]
+        old_value = self.assets.loc[idx, "Value"]
+        old_n_assets = self.n_assets
+        self.n_assets = idx - 1
+        self.add_asset(name, 40)
+        new_value = self.assets.loc[idx, "Value"]
+        self.assets.loc[1, "Value"] += old_value - new_value
+        self.n_assets = old_n_assets
+
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
         for index, row in self.assets.iterrows():
             price_date = self.date
@@ -222,8 +234,7 @@ class Fund:
                 while df.size == 0: # van olyan nap, amikor valamelyik eszközhöz nincs adat, ezért kell ez
                     price_date -= timedelta(days=1) # ekkor a legutolsó elérhető áron árazzuk
                     df = df_original.loc[df_original["Settle Date"] == price_date]
-                current_price = df["Bid Price"].loc[df["Settle Date"] == price_date] + \
-                                    df["Accrued"].loc[df["Settle Date"] == price_date]
+                current_price = df["Bid Price"] + df["Accrued"]
                 self.assets.loc[index, "Value"] = current_price.values[0] * self.assets.loc[index, "Nominal"] / 100
         # self.calc_bank_deposit_value()
         self.nav = self.assets["Value"].sum() # a nav az új értékek összege
@@ -268,20 +279,18 @@ class Fund:
         self.date_list.append(self.date)
         self.nav_list.append(self.nav)
         self.nav_per_shares_list.append(self.nav_per_shares)
-        self.num_of_shares_list.append(self.num_of_shares / 50)
-        self.df_shares = self.df_shares.merge(self.assets, 'outer', 'Name')
+       # self.df_shares = self.df_shares.merge(self.assets, how='outer', on='Name')
 
     def plot_values(self):
-        df_nav = pd.DataFrame({'Net Asset Value': self.nav_list, 'Number of Shares': self.num_of_shares_list},
-                              index=self.date_list)
+        df_nav = pd.DataFrame({'Net Asset Value': self.nav_list}, index=self.date_list)
 
         df_nav_per_shares = pd.DataFrame({'Net Asset Value per Shares': self.nav_per_shares_list}, index=self.date_list)
 
-        self.df_shares.index = self.df_shares['Name']
-        self.df_shares = self.df_shares.filter(like='Value', axis=1)
-        self.df_shares.columns = self.date_list
+       # self.df_shares.index = self.df_shares['Name']
+       # self.df_shares = self.df_shares.filter(like='Value', axis=1)
+       # self.df_shares.columns = self.date_list
 
         df_nav.plot()
         df_nav_per_shares.plot()
-        self.df_shares.T.plot()
+        # self.df_shares.T.plot()
 
