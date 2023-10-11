@@ -1,6 +1,14 @@
 # ppa
 bizonytalanság projektmunka
 
+**EXCEL FILE-OK**
+
+- maturity.xlsx: a portfólió elemeinek lejárata, minden napra külön megadva
+- nav.xlsx: a ppa eszközeinek nettó összértéke minden napra
+- returns.xlsx: a ppa napi hozamai minden napra
+- shares.xlsx: a portfólióban szereplő eszközök értékaránya, minden napra külön megadva
+- walm.xlsx: a portfólió WAL-jának (ill. WAM-jának - a kettő megegyezik) értéke minden nap (napokban kifejezve)
+
 Amit egyelőre tud:
 - betenni állampapírokat, készpénzt, bankbetétet egy alapba
 - a napot pörgetve újraárazni, nav-ot számolni
@@ -9,7 +17,6 @@ Amit egyelőre tud:
 
 Ami hiányzik:
 - stressztesztek
-- tranzakció árfolyamváltozás miatt 
 
 Ha lefuttatod a usage.py-t, végigfut a program, kiplotolva, hogy hogy változott az eszközök értéke, a NAV, és a NAV per share. 
 Az eszközök a self.assets dataframe-ben vannak. 1-es indexel van a cash, 11-től kezdődő indexel a különböző lejáratú bankbetétek, a kettő közötti indexeléssel az állampapírok. 

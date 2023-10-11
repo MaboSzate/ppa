@@ -259,6 +259,7 @@ class Fund:
         # első nap a df_shares
         if self.dateIndex == 0:
             self.df_all = self.assets.copy()
+            self.walm_list = [np.dot(self.assets["Maturity"] - self.date, self.assets["Share"]).days]
         self.dateIndex += 1
         self.date = self.tradingDays[self.dateIndex]
         self.check_maturity()
@@ -315,6 +316,8 @@ class Fund:
         self.returns.to_excel("returns.xlsx")
         df_shares.to_excel("shares.xlsx")
         df_maturity.to_excel("maturity.xlsx")
-        self.walm_list = pd.DataFrame(self.walm_list)
+        self.walm_list = pd.DataFrame(self.walm_list, index=self.date_list)
         self.walm_list.to_excel("walm.xlsx")
+        self.nav_list = pd.DataFrame(self.nav_list, index=self.date_list)
+        self.nav_list.to_excel("nav.xlsx")
 
