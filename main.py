@@ -48,7 +48,7 @@ class Fund:
         # tranzakciós lista
         self.transactions = pd.DataFrame(
             columns=['Date', 'Transaction', 'Reason',
-                     'Value_of_Transaction_per_Shares (mFt)'])
+                     'Value_of_Transaction_per_Asset (mFt)'])
         self.transaction_value_per_shares = 0
 
     def add_asset(self, name, nominal):  # új eszköz felvétele az alapba
@@ -352,7 +352,7 @@ class Fund:
     def add_transaction(self, transaction, reason):
         new_transaction = pd.DataFrame([{
             'Date': self.date, 'Transaction': transaction, 'Reason': reason,
-            'Value_of_Transaction_per_Shares (mFt)':
+            'Value_of_Transaction_per_Asset (mFt)':
                 self.transaction_value_per_shares
         }])
         self.transactions = pd.concat([self.transactions, new_transaction],
