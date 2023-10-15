@@ -29,8 +29,9 @@ class Fund:
         self.calc_nav_per_shares()  # egy jegyre jutó nav
         self.interest_rate = 0.0001 / 12  # havi kamatláb (interneten ez volt a leggyakoribb)
         self.trajectory = self.generate_trajectory()
-        self.zerokupon = pd.read_csv("zerokupon.csv", sep=";", usecols=[0, 1])
-        self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
+        # self.zerokupon = pd.read_csv("zerokupon.csv", sep=";", usecols=[0, 1])
+        # self.zerokupon["Date"] = pd.to_datetime(self.zerokupon["Date"])
+        # self.zerokupon['Hozam'] = self.zerokupon['Hozam'] / 100
         self.new_asset_index = 0
         self.deposit_index = 1
         self.walm = 0
@@ -43,6 +44,12 @@ class Fund:
         self.df_all = pd.DataFrame()
         self.returns = pd.DataFrame()
         self.walm_list = []
+
+        # tranzakciós lista
+        self.transactions = pd.DataFrame(
+            columns=['Date', 'Transaction', 'Reason',
+                     'Value_of_Transaction_per_Shares (mFt)'])
+        self.transaction_value_per_shares = 0
 
     def add_asset(self, name, nominal):  # új eszköz felvétele az alapba
         self.n_assets += 1
@@ -121,6 +128,11 @@ class Fund:
         self.assets.loc[securities, "Value"] -= value_loss
         self.assets.loc[1, "Value"] += value_loss.sum()
 
+        # a tranzakció értékét összegezzük
+        # bank deposit nincs az eszközökbe beleszámolva
+        self.transaction_value_per_shares += \
+            value_loss.sum() / (self.n_assets - 1)
+
     def check_maturity(self): # megnézzük, hogy a mai napon lejár-e valamelyik eszköz
         for index, row in self.assets.iterrows():
             date = row["Maturity"]
@@ -182,12 +194,17 @@ class Fund:
             while self.assets.loc[1, "Share"] < 0.1:
                 self.sell_assets(0.01)
                 self.calc_share_of_assets()
+            self.add_transaction('Selling assets in equal ratio',
+                                 'Daily liquidity below 7.5%')
+            print(self.transactions)
             print("Eladtam eszközöket úgy, hogy 10% cash legyen")
 
     def not_enough_deposit(self):
         while self.assets.loc[1, 'Share'] + self.assets['Share'].loc[self.assets.index > 10].sum() < 0.2:
             self.sell_assets(0.01)
             self.calc_share_of_assets()
+        self.add_transaction('Selling assets in equal ratio',
+                             'Weekly liquidity below 15%')
         print("Eladtam eszközöket úgy, hogy 20% cash+deposit legyen")
         half_of_cash = self.assets.loc[1, "Value"] / 2
         self.deposit_index += 1
@@ -216,6 +233,11 @@ class Fund:
             self.calc_share_of_assets()
             old_value = new_value
             nominal += nominal_increment
+
+            self.transaction_value_per_shares += value_change
+        self.add_transaction(f'Buying asset {new_asset}.',
+                             'Number of assets below 6.')
+        print(self.transactions)
         self.check_limits()
 
     def above_30(self):
@@ -228,6 +250,11 @@ class Fund:
         new_value = self.assets.loc[idx, "Value"]
         self.assets.loc[1, "Value"] += old_value - new_value
         self.n_assets = old_n_assets
+
+        self.transaction_value_per_shares += old_value - new_value
+        self.add_transaction(f'Selling from asset {name}.',
+                             f'Share of asset {name} above 30%.')
+        print(self.transactions)
 
     def calc_nav(self): # az eszközök újraárazása, majd összeadása, hogy meglegyen az új nav
         for index, row in self.assets.iterrows():
@@ -320,4 +347,14 @@ class Fund:
         self.walm_list.to_excel("walm.xlsx")
         self.nav_list = pd.DataFrame(self.nav_list, index=self.date_list)
         self.nav_list.to_excel("nav.xlsx")
+        self.transactions.to_excel('transaction_list.xlsx')
 
+    def add_transaction(self, transaction, reason):
+        new_transaction = pd.DataFrame([{
+            'Date': self.date, 'Transaction': transaction, 'Reason': reason,
+            'Value_of_Transaction_per_Shares (mFt)':
+                self.transaction_value_per_shares
+        }])
+        self.transactions = pd.concat([self.transactions, new_transaction],
+                                      ignore_index=True)
+        self.transaction_value_per_shares = 0
